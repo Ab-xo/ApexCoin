@@ -1,104 +1,94 @@
 # Apex Coin
 
-Apex Coin is a responsive cryptocurrency market screener. Its homepage displays CoinGecko global market statistics, trending coins and categories, historical price charts, a watchlist, and a paginated coin market table.
+Apex Coin is a read-only cryptocurrency market dashboard for tracking global
+market activity and exploring individual assets. It combines CoinGecko market
+data with a searchable screener, selectable fiat currencies, and an OHLC
+candlestick chart.
 
-## Built with
+> Market data is informational and may be delayed. Apex Coin does not provide
+> financial advice or execute trades.
 
-- [Next.js](https://nextjs.org) App Router and React
-- [TypeScript](https://www.typescriptlang.org/)
-- [Tailwind CSS v4](https://tailwindcss.com/)
-- [shadcn/ui](https://ui.shadcn.com/) CLI configuration using Base UI and the Nova preset
-- [Lucide](https://lucide.dev/) icons
-- [Geist](https://vercel.com/font) fonts
+## Features
+
+- Market overview with global market capitalization, trading volume, and BTC
+  dominance.
+- Trending assets and categories with clear positive/negative market movement.
+- Searchable, sortable, paginated cryptocurrency screener.
+- Shareable coin detail pages with market statistics and price history.
+- Interactive candlestick chart with 1-day, 1-week, 1-month, 3-month, 6-month,
+  and 1-year ranges.
+- USD, EUR, GBP, and INR price display.
+- Responsive layouts, streaming loading states, and CoinGecko coin imagery.
+
+## Technology
+
+| Area | Technology |
+| --- | --- |
+| Framework | Next.js App Router |
+| UI | React, TypeScript, Tailwind CSS v4 |
+| Components | Base UI, shadcn/ui configuration |
+| Icons and fonts | Lucide, Geist |
+| Market data | CoinGecko API |
+| Package manager | npm |
+
+### Languages and configuration
+
+- **TypeScript** — application, API routes, and server-side data integration.
+- **CSS** — global styles and Tailwind CSS utility styling.
+- **JSON** — package manifest, lockfile, and UI configuration.
+
+## Application routes
+
+| Route | Description |
+| --- | --- |
+| `/` | Apex Coin introduction |
+| `/market` | Streaming market overview and dashboard |
+| `/coins` | Searchable coin screener |
+| `/coins/[id]` | Coin market details and price history |
 
 ## Getting started
 
-### Prerequisites
+### Requirements
 
 - Node.js 20.18.1 or newer
 - npm
 - A CoinGecko Demo or Pro API key
 
-### Configure CoinGecko
+### Configure the API
 
-Copy `.env.example` to `.env.local`, then add your CoinGecko API key:
+Copy `.env.example` to `.env.local` and set your CoinGecko API key:
 
 ```dotenv
 COINGECKO_BASE_URL=https://api.coingecko.com/api/v3
 COINGECKO_API_KEY=your_coingecko_demo_or_pro_api_key
 ```
 
-Keep the API key in `COINGECKO_API_KEY` (without the `NEXT_PUBLIC_` prefix). The key is sent by server-side API routes and is never included in browser requests. For a Pro key, use `https://pro-api.coingecko.com/api/v3` as the base URL.
+For a Pro API key, use `https://pro-api.coingecko.com/api/v3` as the base URL.
+Keep the key in `COINGECKO_API_KEY`; do not add the `NEXT_PUBLIC_` prefix.
+Requests to CoinGecko are made by the server.
 
-### Install dependencies
+### Install and run
 
 ```bash
 npm install
-```
-
-### Start the development server
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Available scripts
+## Available commands
 
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the development server |
+| `npm run lint` | Run ESLint |
+| `npx tsc --noEmit` | Check TypeScript types |
 | `npm run build` | Create a production build |
 | `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint |
-
-## Project structure
-
-```text
-app/
-  api/market/   Server-side CoinGecko market, trending, and chart endpoints
-  coins/        Searchable market list and shareable coin detail routes
-  market/       Suspense-streamed market dashboard
-  components/   Shared site header, footer, interactive dashboard, and stream fallback
-  globals.css   Tailwind imports, theme tokens, and global styles
-  layout.tsx    Root layout, metadata, and Geist fonts
-  page.tsx      Apex Coin landing page with links to the market app
-lib/
-  coingecko.ts  Server-only CoinGecko API client
-  market-data.ts Shared server-side CoinGecko market and coin data loaders
-  utils.ts      Shared `cn` class-name utility
-```
-
-The landing page is served at `/`. The market dashboard is available at `/market`,
-with the coin screener at `/coins` and coin details at `/coins/[id]`.
-
-## shadcn/ui
-
-The project’s shadcn configuration is in [`components.json`](./components.json). To add a component while connected to the shadcn registry, run:
-
-```bash
-npx shadcn add button
-```
-
-Replace `button` with the component you want to add. Adding registry components requires internet access.
 
 ## Market data
 
-Market data is provided by [CoinGecko](https://www.coingecko.com/en/api). The dashboard streams a skeleton immediately while its initial market data loads on the server. Interactive searches and paginated coin lists continue to use the server-side API route, while market statistics and trending discovery are cached according to CoinGecko's update cadence. Data may be delayed and is not investment advice.
-
-The market dashboard supports USD, EUR, GBP, and INR display currencies. Market
-prices and chart history are requested from CoinGecko in the selected currency.
-The dashboard's candlestick chart offers 1-day, 1-week, 1-month, 3-month,
-6-month, and 1-year ranges.
-
-## Roadmap
-
-See the [next-phase plan](./docs/next-phase-plan.md) for the proposed watchlist, asset-inspection, reliability, and release milestones.
-
-## Production build
-
-```bash
-npm run build
-npm run start
-```
+CoinGecko supplies market listings, global statistics, trending assets, and
+coin price history. The dashboard requests chart data in the selected fiat
+currency. API credentials stay on the server. Data availability, freshness,
+and request limits depend on the CoinGecko API plan.
