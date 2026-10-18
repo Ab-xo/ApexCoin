@@ -3,6 +3,7 @@ import {
   isRecord,
   requestCoinGecko,
 } from "@/lib/coingecko";
+import type { MarketCurrency } from "@/lib/currency";
 
 const MAX_SEARCH_RESULTS = 250;
 
@@ -11,6 +12,7 @@ type MarketDataOptions = {
   perPage: number;
   order: "market_cap_desc" | "volume_desc";
   query: string;
+  currency: MarketCurrency;
 };
 
 export type CoinListOptions = {
@@ -229,7 +231,7 @@ export async function loadCoinPriceChart(id: string): Promise<ChartPoint[]> {
   return prices;
 }
 
-function parseTrending(payload: unknown) {
+function parseTrending(payload: unknown, currency: MarketCurrency, exchangeRate: number) {
   if (!isRecord(payload)) {
     throw new Error("CoinGecko returned invalid trending data.");
   }
@@ -259,10 +261,11 @@ function parseTrending(payload: unknown) {
         symbol: symbol.toUpperCase(),
         image: stringValue(item.large) ?? stringValue(item.thumb),
         rank: finiteNumber(item.market_cap_rank),
-        price: finiteNumber(data.price),
-        change24h: finiteNumber(change.usd),
-        marketCap: formattedNumber(data.market_cap),
-        volume24h: formattedNumber(data.total_volume),
+        price: scaleValue(data.price, exchangeRate),
+        change24h:
+          finiteNumber(change[currency]) ?? finiteNumber(change.usd),
+        marketCap: scaleValue(data.market_cap, exchangeRate),
+        volume24h: scaleValue(data.total_volume, exchangeRate),
       }];
     }),
     categories: trendingCategories.flatMap((value) => {
@@ -278,17 +281,22 @@ function parseTrending(payload: unknown) {
   };
 }
 
-function parseGlobal(payload: unknown) {
+function scaleValue(value: unknown, exchangeRate: number): number | null {
+  const amount = formattedNumber(value);
+  return amount === null ? null : amount * exchangeRate;
+}
+
+function parseGlobal(payload: unknown, currency: MarketCurrency) {
   if (!isRecord(payload) || !isRecord(payload.data)) {
     throw new Error("CoinGecko returned invalid global market data.");
   }
 
   const data = payload.data;
   const marketCap = isRecord(data.total_market_cap)
-    ? finiteNumber(data.total_market_cap.usd)
+    ? finiteNumber(data.total_market_cap[currency])
     : null;
   const volume = isRecord(data.total_volume)
-    ? finiteNumber(data.total_volume.usd)
+    ? finiteNumber(data.total_volume[currency])
     : null;
   const dominance = isRecord(data.market_cap_percentage)
     ? finiteNumber(data.market_cap_percentage.btc)
@@ -296,7 +304,9 @@ function parseGlobal(payload: unknown) {
 
   return {
     marketCap,
-    marketCapChange24h: finiteNumber(data.market_cap_change_percentage_24h_usd),
+    marketCapChange24h:
+      finiteNumber(data[`market_cap_change_percentage_24h_${currency}`]) ??
+      finiteNumber(data.market_cap_change_percentage_24h_usd),
     volume24h: volume,
     btcDominance: dominance,
     activeCryptocurrencies: finiteNumber(data.active_cryptocurrencies),
@@ -308,6 +318,7 @@ export async function loadMarketData({
   perPage,
   order,
   query,
+  currency,
 }: MarketDataOptions) {
   const [globalPayload, trendingPayload, searchPayload] = await Promise.all([
     requestCoinGecko("global", {}, 60),
@@ -316,7 +327,7 @@ export async function loadMarketData({
   ]);
 
   let coinParams: Record<string, string> = {
-    vs_currency: "usd",
+    vs_currency: currency,
     order,
     per_page: String(perPage),
     page: String(page),
@@ -333,9 +344,14 @@ export async function loadMarketData({
         : [];
     const ids = matchingCoins.slice(0, MAX_SEARCH_RESULTS);
     if (ids.length === 0) {
+      const global = parseGlobal(globalPayload, currency);
       return {
-        global: parseGlobal(globalPayload),
-        trending: parseTrending(trendingPayload),
+        global,
+        trending: parseTrending(
+          trendingPayload,
+          currency,
+          getExchangeRate(globalPayload, currency),
+        ),
         coins: [],
         page,
         perPage,
@@ -347,13 +363,34 @@ export async function loadMarketData({
 
   const marketPayload = await requestCoinGecko("coins/markets", coinParams, 60);
   const coins = parseMarketCoins(marketPayload);
+  const global = parseGlobal(globalPayload, currency);
 
   return {
-    global: parseGlobal(globalPayload),
-    trending: parseTrending(trendingPayload),
+    global,
+    trending: parseTrending(
+      trendingPayload,
+      currency,
+      getExchangeRate(globalPayload, currency),
+    ),
     coins,
     page,
     perPage,
     hasNextPage: coins.length === perPage,
   };
+}
+
+function getExchangeRate(payload: unknown, currency: MarketCurrency): number {
+  if (currency === "usd" || !isRecord(payload) || !isRecord(payload.data)) {
+    return 1;
+  }
+  const marketCaps = payload.data.total_market_cap;
+  if (!isRecord(marketCaps)) {
+    throw new Error("CoinGecko returned no global market cap for currency conversion.");
+  }
+  const usdMarketCap = finiteNumber(marketCaps.usd);
+  const selectedMarketCap = finiteNumber(marketCaps[currency]);
+  if (usdMarketCap === null || usdMarketCap <= 0 || selectedMarketCap === null) {
+    throw new Error(`CoinGecko returned no ${currency.toUpperCase()} conversion rate.`);
+  }
+  return selectedMarketCap / usdMarketCap;
 }

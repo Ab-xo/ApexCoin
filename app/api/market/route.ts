@@ -1,5 +1,6 @@
 import { errorResponse } from "@/lib/coingecko";
 import { loadMarketData } from "@/lib/market-data";
+import { isMarketCurrency } from "@/lib/currency";
 
 const DEFAULT_PER_PAGE = 25;
 
@@ -16,21 +17,31 @@ export async function GET(request: Request) {
   const perPageValue = params.get("perPage") ?? String(DEFAULT_PER_PAGE);
   const perPage = Number(perPageValue);
   const query = (params.get("q") ?? "").trim().slice(0, 100);
+  const currencyValue = params.get("currency") ?? "usd";
   const order =
     params.get("order") === "volume_desc" ? "volume_desc" : "market_cap_desc";
 
-  if (page === null || !/^(10|25|50|100)$/.test(perPageValue)) {
+  if (
+    page === null ||
+    !/^(10|25|50|100)$/.test(perPageValue) ||
+    !isMarketCurrency(currencyValue)
+  ) {
     return Response.json(
       {
-        error:
-          "Invalid pagination. Use page 1-1000 and perPage 10, 25, 50, or 100.",
+        error: "Use page 1-1000, perPage 10, 25, 50, or 100, and currency usd, eur, gbp, or inr.",
       },
       { status: 400 },
     );
   }
 
   try {
-    const data = await loadMarketData({ page, perPage, query, order });
+    const data = await loadMarketData({
+      page,
+      perPage,
+      query,
+      order,
+      currency: currencyValue,
+    });
     return Response.json(data);
   } catch (error) {
     return errorResponse(error);

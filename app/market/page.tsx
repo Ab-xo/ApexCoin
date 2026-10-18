@@ -17,6 +17,7 @@ async function StreamingMarketDashboard() {
       perPage: 25,
       order: "market_cap_desc",
       query: "",
+      currency: "usd",
     });
   } catch (error) {
     const response = errorResponse(error);

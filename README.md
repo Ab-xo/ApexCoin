@@ -87,6 +87,11 @@ Replace `button` with the component you want to add. Adding registry components 
 
 Market data is provided by [CoinGecko](https://www.coingecko.com/en/api). The dashboard streams a skeleton immediately while its initial market data loads on the server. Interactive searches and paginated coin lists continue to use the server-side API route, while market statistics and trending discovery are cached according to CoinGecko's update cadence. Data may be delayed and is not investment advice.
 
+The market dashboard supports USD, EUR, GBP, and INR display currencies. Market
+prices and chart history are requested from CoinGecko in the selected currency.
+The dashboard's candlestick chart offers 1-day, 1-week, 1-month, 3-month,
+6-month, and 1-year ranges.
+
 ## Roadmap
 
 See the [next-phase plan](./docs/next-phase-plan.md) for the proposed watchlist, asset-inspection, reliability, and release milestones.

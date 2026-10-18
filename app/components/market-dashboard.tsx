@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Clock3,
   LoaderCircle,
+  Minus,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -16,6 +17,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  isMarketCurrency,
+  marketCurrencies,
+  type MarketCurrency,
+} from "@/lib/currency";
 import { CoinIcon } from "./coin-icon";
 
 type MarketCoin = {
@@ -67,19 +73,48 @@ export type MarketResponse = {
   hasNextPage: boolean;
 };
 
-type ChartPoint = { timestamp: number; price: number };
+type ChartCandle = {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+function isChartCandle(value: unknown): value is ChartCandle {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "timestamp" in value &&
+    typeof value.timestamp === "number" &&
+    Number.isFinite(value.timestamp) &&
+    "open" in value &&
+    typeof value.open === "number" &&
+    Number.isFinite(value.open) &&
+    "high" in value &&
+    typeof value.high === "number" &&
+    Number.isFinite(value.high) &&
+    "low" in value &&
+    typeof value.low === "number" &&
+    Number.isFinite(value.low) &&
+    "close" in value &&
+    typeof value.close === "number" &&
+    Number.isFinite(value.close)
+  );
+}
 type CoinSummary = Pick<
   MarketCoin,
   "id" | "name" | "symbol" | "image" | "rank" | "price" | "change24h" | "marketCap" | "volume24h" | "sparkline"
 > & { high24h: number | null; low24h: number | null };
 
-const timeframes = ["24H", "7D", "1M", "1Y"] as const;
+const timeframes = ["1D", "1W", "1M", "3M", "6M", "1Y"] as const;
 type Timeframe = (typeof timeframes)[number];
 
 const timeframeDays: Record<Timeframe, string> = {
-  "24H": "1",
-  "7D": "7",
+  "1D": "1",
+  "1W": "7",
   "1M": "30",
+  "3M": "90",
+  "6M": "180",
   "1Y": "365",
 };
 
@@ -87,23 +122,56 @@ const initialMarketKey = new URLSearchParams({
   page: "1",
   perPage: "25",
   order: "market_cap_desc",
+  currency: "usd",
 }).toString() + ":0";
 
-function formatPrice(price: number | null) {
+function formatPrice(price: number | null, currency: MarketCurrency) {
   if (price === null) return "—";
-  return price < 1
-    ? `$${price.toLocaleString("en-US", { maximumFractionDigits: 8 })}`
-    : `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    maximumSignificantDigits: 8,
+  }).format(price);
 }
 
-function formatCompactCurrency(value: number | null) {
+function formatCompactCurrency(value: number | null, currency: MarketCurrency) {
   if (value === null) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: currency.toUpperCase(),
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatAxisPrice(value: number, currency: MarketCurrency) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    maximumSignificantDigits: 4,
+  }).format(value);
+}
+
+function PriceChange({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-slate-500">—</span>;
+  const isPositive = value > 0;
+  const isNegative = value < 0;
+  const ChangeIcon = isPositive ? ArrowUpRight : isNegative ? ArrowDownRight : Minus;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-medium ${
+        isPositive
+          ? "text-emerald-300"
+          : isNegative
+            ? "text-rose-300"
+            : "text-slate-400"
+      }`}
+    >
+      <ChangeIcon aria-hidden="true" className="h-3.5 w-3.5" />
+      {isPositive ? "+" : ""}
+      {value.toFixed(2)}%
+    </span>
+  );
 }
 
 function formatCompactNumber(value: number | null) {
@@ -114,44 +182,127 @@ function formatCompactNumber(value: number | null) {
   }).format(value);
 }
 
-function MarketChart({ prices, name }: { prices: ChartPoint[]; name: string }) {
-  const values = prices.map(({ price }) => price);
-  const minPrice = Math.min(...values);
-  const range = Math.max(...values) - minPrice || 1;
-  const points = prices.map(({ price }, index) => {
-    const x = (index / Math.max(prices.length - 1, 1)) * 1000;
-    const y = 225 - ((price - minPrice) / range) * 180;
-    return { x, y };
-  });
-  const line = points.map(({ x, y }) => `${x},${y}`).join(" ");
-  const area = `0,250 ${line} 1000,250`;
+function MarketChart({
+  candles,
+  name,
+  currency,
+}: {
+  candles: ChartCandle[];
+  name: string;
+  currency: MarketCurrency;
+}) {
+  const rawHigh = Math.max(...candles.map(({ high }) => high));
+  const rawLow = Math.min(...candles.map(({ low }) => low));
+  const padding = (rawHigh - rawLow || Math.abs(rawHigh) * 0.04 || 1) * 0.08;
+  const minPrice = rawLow - padding;
+  const maxPrice = rawHigh + padding;
+  const priceRange = maxPrice - minPrice;
+  const chartWidth = 900;
+  const chartTop = 20;
+  const chartBottom = 244;
+  const yForPrice = (price: number) =>
+    chartBottom - ((price - minPrice) / priceRange) * (chartBottom - chartTop);
+  const candleWidth = Math.min(12, (chartWidth / candles.length) * 0.62);
+  const highIndex = candles.findIndex(({ high }) => high === rawHigh);
+  const lowIndex = candles.findIndex(({ low }) => low === rawLow);
+  const xForIndex = (index: number) =>
+    (index / Math.max(candles.length - 1, 1)) * (chartWidth - candleWidth) +
+    candleWidth / 2;
 
   return (
     <svg
       role="img"
-      aria-label={`${name} historical CoinGecko price chart`}
-      viewBox="0 0 1000 270"
+      aria-label={`${name} CoinGecko candlestick price chart in ${currency.toUpperCase()}`}
+      viewBox="0 0 1060 270"
       preserveAspectRatio="none"
-      className="h-56 w-full overflow-visible sm:h-72"
+      className="h-64 w-full sm:h-80"
     >
-      <defs>
-        <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[35, 90, 145, 200, 250].map((y) => (
-        <line key={y} x1="0" x2="1000" y1={y} y2={y} stroke="#ffffff" strokeOpacity="0.07" strokeDasharray="4 8" />
-      ))}
-      <polygon points={area} fill="url(#chart-fill)" />
-      <polyline
-        points={line}
-        fill="none"
-        stroke="#22d3ee"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
+      {[0, 1, 2, 3, 4].map((tick) => {
+        const y = chartTop + ((chartBottom - chartTop) * tick) / 4;
+        const price = maxPrice - ((maxPrice - minPrice) * tick) / 4;
+        return (
+          <g key={tick}>
+            <line
+              x1="0"
+              x2={chartWidth}
+              y1={y}
+              y2={y}
+              stroke="#ffffff"
+              strokeOpacity="0.08"
+              strokeDasharray="3 7"
+            />
+            <text
+              x="920"
+              y={y + 4}
+              fill="#64748b"
+              fontSize="12"
+              textAnchor="start"
+            >
+              {formatAxisPrice(price, currency)}
+            </text>
+          </g>
+        );
+      })}
+      {candles.map((candle, index) => {
+        const x = xForIndex(index);
+        const openY = yForPrice(candle.open);
+        const closeY = yForPrice(candle.close);
+        const rising = candle.close >= candle.open;
+        const candleColor = rising ? "#34d399" : "#fb7185";
+        return (
+          <g key={candle.timestamp}>
+            <title>
+              {`${new Date(candle.timestamp).toLocaleString()}: Open ${formatPrice(candle.open, currency)}, High ${formatPrice(candle.high, currency)}, Low ${formatPrice(candle.low, currency)}, Close ${formatPrice(candle.close, currency)}`}
+            </title>
+            <line
+              x1={x}
+              x2={x}
+              y1={yForPrice(candle.high)}
+              y2={yForPrice(candle.low)}
+              stroke={candleColor}
+              strokeWidth="1.5"
+            />
+            <rect
+              x={x - candleWidth / 2}
+              y={Math.min(openY, closeY)}
+              width={candleWidth}
+              height={Math.max(1.5, Math.abs(closeY - openY))}
+              fill={candleColor}
+              fillOpacity="0.78"
+              stroke={candleColor}
+              strokeWidth="1"
+              rx="1"
+            />
+          </g>
+        );
+      })}
+      <circle
+        cx={xForIndex(highIndex)}
+        cy={yForPrice(rawHigh)}
+        r="4"
+        fill="#34d399"
+        stroke="#020817"
+        strokeWidth="2"
+      >
+        <title>High point in selected range</title>
+      </circle>
+      <circle
+        cx={xForIndex(lowIndex)}
+        cy={yForPrice(rawLow)}
+        r="4"
+        fill="#fb7185"
+        stroke="#020817"
+        strokeWidth="2"
+      >
+        <title>Low point in selected range</title>
+      </circle>
+      <line
+        x1={chartWidth}
+        x2={chartWidth}
+        y1={chartTop}
+        y2={chartBottom}
+        stroke="#ffffff"
+        strokeOpacity="0.08"
       />
     </svg>
   );
@@ -164,7 +315,8 @@ export function MarketDashboard({
   initialMarket: MarketResponse | null;
   initialError: string | null;
 }) {
-  const [timeframe, setTimeframe] = useState<Timeframe>("24H");
+  const [timeframe, setTimeframe] = useState<Timeframe>("1D");
+  const [currency, setCurrency] = useState<MarketCurrency>("usd");
   const [activeCoinId, setActiveCoinId] = useState("bitcoin");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -174,16 +326,18 @@ export function MarketDashboard({
   const [refreshToken, setRefreshToken] = useState(0);
   const [marketState, setMarketState] = useState<{
     key: string;
+    currency: MarketCurrency;
     data?: MarketResponse;
     error?: string;
   }>(() => ({
     key: initialMarketKey,
+    currency: "usd",
     data: initialMarket ?? undefined,
     error: initialError ?? undefined,
   }));
   const [chartState, setChartState] = useState<{
     key: string;
-    prices?: ChartPoint[];
+    candles?: ChartCandle[];
     error?: string;
   } | null>(null);
   const [favorites, setFavorites] = useState<string[]>(["bitcoin", "ethereum"]);
@@ -202,6 +356,7 @@ export function MarketDashboard({
       perPage === 25 &&
       order === "market_cap_desc" &&
       debouncedSearch === "" &&
+      currency === "usd" &&
       refreshToken === 0
     ) {
       return;
@@ -212,6 +367,7 @@ export function MarketDashboard({
       page: String(page),
       perPage: String(perPage),
       order,
+      currency,
     });
     if (debouncedSearch) params.set("q", debouncedSearch);
 
@@ -233,7 +389,7 @@ export function MarketDashboard({
       })
       .then((data) => {
         if (!controller.signal.aborted) {
-          setMarketState({ key: requestKey, data });
+          setMarketState({ key: requestKey, currency, data });
         }
       })
       .catch((error: unknown) => {
@@ -241,19 +397,22 @@ export function MarketDashboard({
         if (!controller.signal.aborted) {
           setMarketState({
             key: requestKey,
+            currency,
             error: error instanceof Error ? error.message : "Could not load market data.",
           });
         }
       });
 
     return () => controller.abort();
-  }, [page, perPage, order, debouncedSearch, refreshToken]);
+  }, [page, perPage, order, debouncedSearch, currency, refreshToken]);
 
-  const market = marketState?.data ?? null;
+  const market =
+    marketState?.currency === currency ? marketState.data ?? null : null;
   const marketKey = new URLSearchParams({
     page: String(page),
     perPage: String(perPage),
     order,
+    currency,
     ...(debouncedSearch ? { q: debouncedSearch } : {}),
   }).toString() + `:${refreshToken}`;
   const marketError =
@@ -288,16 +447,16 @@ export function MarketDashboard({
   const activeAsset = allCoins.find((coin) => coin.id === activeCoinId) ?? null;
   const watchlist = allCoins.filter((coin) => favorites.includes(coin.id));
   const activeCoinIdForChart = activeAsset?.id;
-  const activeChartKey = `${activeCoinIdForChart ?? ""}:${timeframe}`;
+  const activeChartKey = `${activeCoinIdForChart ?? ""}:${timeframe}:${currency}`;
 
   useEffect(() => {
     if (!activeCoinIdForChart) return;
     const coinId = activeCoinIdForChart;
-    const requestKey = `${coinId}:${timeframe}`;
+    const requestKey = `${coinId}:${timeframe}:${currency}`;
     const controller = new AbortController();
 
     fetch(
-      `/api/market/chart?id=${encodeURIComponent(coinId)}&days=${timeframeDays[timeframe]}`,
+      `/api/market/chart?id=${encodeURIComponent(coinId)}&days=${timeframeDays[timeframe]}&currency=${currency}`,
       { signal: controller.signal },
     )
       .then(async (response) => {
@@ -315,16 +474,20 @@ export function MarketDashboard({
         if (
           typeof payload !== "object" ||
           payload === null ||
-          !("prices" in payload) ||
-          !Array.isArray(payload.prices)
+          !("candles" in payload) ||
+          !Array.isArray(payload.candles)
         ) {
           throw new Error("CoinGecko returned invalid chart data.");
         }
-        return payload.prices as ChartPoint[];
+        const candles = payload.candles.filter(isChartCandle);
+        if (candles.length === 0) {
+          throw new Error("CoinGecko returned no OHLC chart data for this coin.");
+        }
+        return candles;
       })
-      .then((prices) => {
+      .then((candles) => {
         if (!controller.signal.aborted) {
-          setChartState({ key: requestKey, prices });
+          setChartState({ key: requestKey, candles });
         }
       })
       .catch((error: unknown) => {
@@ -338,14 +501,28 @@ export function MarketDashboard({
       });
 
     return () => controller.abort();
-  }, [activeCoinIdForChart, timeframe]);
+  }, [activeCoinIdForChart, timeframe, currency]);
 
-  const chartPrices =
-    chartState?.key === activeChartKey ? chartState.prices ?? [] : [];
+  const chartCandles =
+    chartState?.key === activeChartKey ? chartState.candles ?? [] : [];
   const chartError =
     chartState?.key === activeChartKey ? chartState.error ?? null : null;
   const chartLoading =
     Boolean(activeAsset) && chartState?.key !== activeChartKey;
+  const chartChange =
+    chartCandles.length > 1 && chartCandles[0].open !== 0
+      ? ((chartCandles[chartCandles.length - 1].close - chartCandles[0].open) /
+          chartCandles[0].open) *
+        100
+      : null;
+  const chartHigh =
+    chartCandles.length > 0
+      ? Math.max(...chartCandles.map(({ high }) => high))
+      : null;
+  const chartLow =
+    chartCandles.length > 0
+      ? Math.min(...chartCandles.map(({ low }) => low))
+      : null;
 
   function toggleFavorite(id: string) {
     setFavorites((current) =>
@@ -358,13 +535,13 @@ export function MarketDashboard({
   const overviewStats = [
     {
       label: "Total market cap",
-      value: formatCompactCurrency(market?.global.marketCap ?? null),
+      value: formatCompactCurrency(market?.global.marketCap ?? null, currency),
       change: market?.global.marketCapChange24h ?? null,
       icon: CircleDollarSign,
     },
     {
       label: "24h trading volume",
-      value: formatCompactCurrency(market?.global.volume24h ?? null),
+      value: formatCompactCurrency(market?.global.volume24h ?? null, currency),
       change: null,
       icon: BarChart3,
     },
@@ -403,6 +580,26 @@ export function MarketDashboard({
             </p>
           </div>
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+            <label className="inline-flex items-center gap-2">
+              <span>Currency</span>
+              <select
+                value={currency}
+                onChange={(event) => {
+                  if (isMarketCurrency(event.target.value)) {
+                    setCurrency(event.target.value);
+                  }
+                }}
+                aria-label="Display currency"
+                className="cursor-pointer bg-transparent font-medium text-slate-200 outline-none"
+              >
+                {marketCurrencies.map(({ code, label }) => (
+                  <option key={code} value={code} className="bg-slate-900">
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="mx-1 h-4 border-l border-white/10" aria-hidden="true" />
             <span className={`h-2 w-2 rounded-full ${marketError ? "bg-rose-400" : "bg-emerald-400"}`} />
             {marketError ? "Market data unavailable" : "CoinGecko market data"}
             <button
@@ -431,12 +628,7 @@ export function MarketDashboard({
               </div>
               <div className="mt-5 flex items-end justify-between gap-3">
                 <p className="text-2xl font-semibold tracking-tight text-white">{value}</p>
-                {change !== null && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium ${change >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                    {change >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                    {change >= 0 ? "+" : ""}{change.toFixed(2)}%
-                  </span>
-                )}
+                {change !== null && <PriceChange value={change} />}
               </div>
             </article>
           ))}
@@ -466,10 +658,8 @@ export function MarketDashboard({
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-200">{formatPrice(asset.price)}</span>
-                <span className={`text-xs font-medium ${(asset.change24h ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                  {asset.change24h === null ? "—" : `${asset.change24h > 0 ? "+" : ""}${asset.change24h.toFixed(2)}%`}
-                </span>
+                <span className="text-sm font-medium text-slate-200">{formatPrice(asset.price, currency)}</span>
+                <span className="text-xs"><PriceChange value={asset.change24h} /></span>
               </div>
             </Link>
           ))}
@@ -480,9 +670,7 @@ export function MarketDashboard({
             <span key={category.name} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300">
               {category.name}
               {category.marketCapChange1h !== null && (
-                <span className={`ml-2 ${category.marketCapChange1h >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                  {category.marketCapChange1h > 0 ? "+" : ""}{category.marketCapChange1h.toFixed(2)}%
-                </span>
+                <span className="ml-2"><PriceChange value={category.marketCapChange1h} /></span>
               )}
             </span>
           ))}
@@ -502,10 +690,10 @@ export function MarketDashboard({
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-white">{activeAsset.name}</h2>
-                    <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-xs text-slate-400">{activeAsset.symbol}/USD</span>
+                    <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-xs text-slate-400">{activeAsset.symbol}/{currency.toUpperCase()}</span>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
                   </div>
-                  <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{formatPrice(activeAsset.price)}</p>
+                  <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{formatPrice(activeAsset.price, currency)}</p>
                 </div>
               </div>
             ) : (
@@ -514,14 +702,15 @@ export function MarketDashboard({
                 <p className="mt-1 text-sm text-slate-500">Select a coin to view its chart.</p>
               </div>
             )}
-            <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-slate-950/50 p-1">
+            <div role="group" aria-label="Chart time range" className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-white/[0.06] bg-slate-950/50 p-1">
               {timeframes.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setTimeframe(item)}
                   aria-pressed={timeframe === item}
-                  className={`rounded-md px-2.5 py-1.5 text-xs transition ${timeframe === item ? "bg-cyan-400/15 font-medium text-cyan-200" : "text-slate-400 hover:text-white"}`}
+                  aria-label={`Show ${item} price history`}
+                  className={`rounded-md px-2.5 py-1.5 text-xs transition ${timeframe === item ? "bg-emerald-400 font-semibold text-slate-950 shadow-sm shadow-emerald-400/20" : "text-slate-400 hover:text-white"}`}
                 >
                   {item}
                 </button>
@@ -530,10 +719,20 @@ export function MarketDashboard({
           </div>
 
           {activeAsset && (
-            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs">
-              <span className="text-slate-500">24h high <strong className="ml-1 font-medium text-slate-300">{formatPrice(activeAsset.high24h)}</strong></span>
-              <span className="text-slate-500">24h low <strong className="ml-1 font-medium text-slate-300">{formatPrice(activeAsset.low24h)}</strong></span>
-              <span className="text-slate-500">Volume <strong className="ml-1 font-medium text-slate-300">{formatCompactCurrency(activeAsset.volume24h)}</strong></span>
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-slate-500">{timeframe} change</span>
+                <PriceChange value={chartChange} />
+              </div>
+              <span className="text-slate-500">
+                Range high <strong className="ml-1 font-medium text-emerald-300">{formatPrice(chartHigh, currency)}</strong>
+              </span>
+              <span className="text-slate-500">
+                Range low <strong className="ml-1 font-medium text-rose-300">{formatPrice(chartLow, currency)}</strong>
+              </span>
+              <span className="text-slate-500">
+                24h volume <strong className="ml-1 font-medium text-slate-300">{formatCompactCurrency(activeAsset.volume24h, currency)}</strong>
+              </span>
             </div>
           )}
 
@@ -547,18 +746,22 @@ export function MarketDashboard({
               <div role="alert" className="flex h-56 items-center justify-center text-center text-sm text-rose-200 sm:h-72">
                 {chartError}
               </div>
-            ) : chartPrices.length > 0 ? (
+            ) : chartCandles.length > 0 ? (
               <>
-                <MarketChart prices={chartPrices} name={activeAsset?.name ?? "Coin"} />
+                <MarketChart
+                  candles={chartCandles}
+                  name={activeAsset?.name ?? "Coin"}
+                  currency={currency}
+                />
                 <div className="mt-2 flex justify-between text-[10px] text-slate-600 sm:text-xs">
                   {[0, 1, 2, 3, 4].map((position) => {
-                    const point = chartPrices[Math.round((chartPrices.length - 1) * (position / 4))];
+                    const point = chartCandles[Math.round((chartCandles.length - 1) * (position / 4))];
                     return (
                       <span key={position}>
                         {new Intl.DateTimeFormat("en", {
-                          month: timeframe === "24H" ? undefined : "short",
-                          day: timeframe === "24H" ? undefined : "numeric",
-                          hour: timeframe === "24H" ? "2-digit" : undefined,
+                          month: timeframe === "1D" ? undefined : "short",
+                          day: timeframe === "1D" ? undefined : "numeric",
+                          hour: timeframe === "1D" ? "2-digit" : undefined,
                         }).format(point.timestamp)}
                       </span>
                     );
@@ -599,10 +802,8 @@ export function MarketDashboard({
                   </span>
                 </span>
                 <span className="text-right">
-                  <span className="block text-sm text-slate-200">{formatPrice(asset.price)}</span>
-                  <span className={`block text-xs ${(asset.change24h ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                    {asset.change24h === null ? "—" : `${asset.change24h > 0 ? "+" : ""}${asset.change24h.toFixed(2)}%`}
-                  </span>
+                  <span className="block text-sm text-slate-200">{formatPrice(asset.price, currency)}</span>
+                  <span className="block text-xs"><PriceChange value={asset.change24h} /></span>
                 </span>
               </button>
             ))}
@@ -691,12 +892,10 @@ export function MarketDashboard({
                       </span>
                     </Link>
                   </td>
-                  <td className="px-4 py-3.5 text-right font-medium text-slate-200">{formatPrice(asset.price)}</td>
-                  <td className={`px-4 py-3.5 text-right font-medium ${(asset.change24h ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                    {asset.change24h === null ? "—" : `${asset.change24h > 0 ? "+" : ""}${asset.change24h.toFixed(2)}%`}
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-slate-300">{formatCompactCurrency(asset.volume24h)}</td>
-                  <td className="px-4 py-3.5 text-right text-slate-300">{formatCompactCurrency(asset.marketCap)}</td>
+                  <td className="px-4 py-3.5 text-right font-medium text-slate-200">{formatPrice(asset.price, currency)}</td>
+                  <td className="px-4 py-3.5 text-right"><PriceChange value={asset.change24h} /></td>
+                  <td className="px-4 py-3.5 text-right text-slate-300">{formatCompactCurrency(asset.volume24h, currency)}</td>
+                  <td className="px-4 py-3.5 text-right text-slate-300">{formatCompactCurrency(asset.marketCap, currency)}</td>
                   <td className="px-6 py-3.5 text-right">
                     <button
                       type="button"
