@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const navigation = [
-  { label: "Overview", href: "/#overview" },
-  { label: "Trending", href: "/#trending" },
-  { label: "Screener", href: "/#screener" },
+  { label: "Overview", href: "/market#overview" },
+  { label: "Trending", href: "/market#trending" },
+  { label: "Screener", href: "/market#screener" },
   { label: "All coins", href: "/coins" },
 ];
 

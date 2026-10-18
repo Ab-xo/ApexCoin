@@ -3,9 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 
 const navigation = [
-  { label: "Overview", href: "/#overview" },
-  { label: "Trending", href: "/#trending" },
-  { label: "Screener", href: "/#screener" },
+  { label: "Overview", href: "/market#overview" },
+  { label: "Trending", href: "/market#trending" },
+  { label: "Screener", href: "/market#screener" },
   { label: "All coins", href: "/coins" },
 ];
 
@@ -33,7 +33,7 @@ export function Header() {
         </nav>
 
         <Link
-          href="/#screener"
+          href="/market#screener"
           className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
         >
           Open screener

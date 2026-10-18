@@ -59,15 +59,19 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 app/
   api/market/   Server-side CoinGecko market, trending, and chart endpoints
   coins/        Searchable market list and shareable coin detail routes
+  market/       Suspense-streamed market dashboard
   components/   Shared site header, footer, interactive dashboard, and stream fallback
   globals.css   Tailwind imports, theme tokens, and global styles
   layout.tsx    Root layout, metadata, and Geist fonts
-  page.tsx      Suspense-streamed market dashboard entry point
+  page.tsx      Apex Coin landing page with links to the market app
 lib/
   coingecko.ts  Server-only CoinGecko API client
   market-data.ts Shared server-side CoinGecko market and coin data loaders
   utils.ts      Shared `cn` class-name utility
 ```
+
+The landing page is served at `/`. The market dashboard is available at `/market`,
+with the coin screener at `/coins` and coin details at `/coins/[id]`.
 
 ## shadcn/ui
 

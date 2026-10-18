@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Footer } from "./components/footer";
-import { Header } from "./components/header";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,9 +36,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_35%),linear-gradient(180deg,#020817_0%,#0f172a_40%,#020817_100%)] text-slate-50"
         suppressHydrationWarning
       >
-        <Header />
         {children}
-        <Footer />
       </body>
     </html>
   );
