@@ -16,7 +16,8 @@ candlestick chart.
 - Searchable, sortable, paginated cryptocurrency screener.
 - Shareable coin detail pages with market statistics and price history.
 - Interactive candlestick chart with 1-day, 1-week, 1-month, 3-month, 6-month,
-  and 1-year ranges.
+  and 1-year ranges, pointer crosshair and OHLC readout, drag-to-pan, and
+  scroll/button zoom controls.
 - USD, EUR, GBP, and INR price display.
 - Responsive layouts, streaming loading states, and CoinGecko coin imagery.
 

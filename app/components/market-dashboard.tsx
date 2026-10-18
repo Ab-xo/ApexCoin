@@ -11,11 +11,20 @@ import {
   LoaderCircle,
   Minus,
   RefreshCw,
+  RotateCcw,
   Search,
   SlidersHorizontal,
   Star,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Link from "next/link";
 import {
   isMarketCurrency,
@@ -191,120 +200,357 @@ function MarketChart({
   name: string;
   currency: MarketCurrency;
 }) {
-  const rawHigh = Math.max(...candles.map(({ high }) => high));
-  const rawLow = Math.min(...candles.map(({ low }) => low));
+  const chartWidth = 900;
+  const chartTop = 20;
+  const chartBottom = 244;
+  const [view, setView] = useState({ start: 0, end: candles.length - 1 });
+  const [cursor, setCursor] = useState<{
+    x: number;
+    y: number;
+    index: number;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const chartRef = useRef<SVGSVGElement | null>(null);
+  const dragStart = useRef<{
+    pointerId: number;
+    x: number;
+    start: number;
+    end: number;
+  } | null>(null);
+  const visibleCandles = candles.slice(view.start, view.end + 1);
+  const rawHigh = Math.max(...visibleCandles.map(({ high }) => high));
+  const rawLow = Math.min(...visibleCandles.map(({ low }) => low));
   const padding = (rawHigh - rawLow || Math.abs(rawHigh) * 0.04 || 1) * 0.08;
   const minPrice = rawLow - padding;
   const maxPrice = rawHigh + padding;
   const priceRange = maxPrice - minPrice;
-  const chartWidth = 900;
-  const chartTop = 20;
-  const chartBottom = 244;
   const yForPrice = (price: number) =>
     chartBottom - ((price - minPrice) / priceRange) * (chartBottom - chartTop);
-  const candleWidth = Math.min(12, (chartWidth / candles.length) * 0.62);
-  const highIndex = candles.findIndex(({ high }) => high === rawHigh);
-  const lowIndex = candles.findIndex(({ low }) => low === rawLow);
+  const candleWidth = Math.min(12, (chartWidth / visibleCandles.length) * 0.62);
+  const highIndex = visibleCandles.findIndex(({ high }) => high === rawHigh);
+  const lowIndex = visibleCandles.findIndex(({ low }) => low === rawLow);
   const xForIndex = (index: number) =>
-    (index / Math.max(candles.length - 1, 1)) * (chartWidth - candleWidth) +
-    candleWidth / 2;
+    visibleCandles.length === 1
+      ? chartWidth / 2
+      : (index / (visibleCandles.length - 1)) * (chartWidth - candleWidth) +
+        candleWidth / 2;
+  const hoveredCandle = cursor ? candles[cursor.index] : null;
+  const currentCount = view.end - view.start + 1;
+  const fullRange = currentCount === candles.length;
+  const cursorIndex = cursor
+    ? Math.max(view.start, Math.min(view.end, cursor.index))
+    : view.start;
+
+  function zoom(factor: number, anchorRatio = 0.5) {
+    setCursor(null);
+    setView((current) => {
+      const total = candles.length;
+      const span = current.end - current.start + 1;
+      const nextSpan = Math.max(5, Math.min(total, Math.round(span * factor)));
+      const anchor = current.start + (span - 1) * anchorRatio;
+      let start = Math.round(anchor - (nextSpan - 1) * anchorRatio);
+      start = Math.max(0, Math.min(total - nextSpan, start));
+      return { start, end: start + nextSpan - 1 };
+    });
+  }
+
+  function updateCursor(event: ReactPointerEvent<SVGSVGElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(
+      0,
+      Math.min(chartWidth, ((event.clientX - bounds.left) / bounds.width) * 1060),
+    );
+    const y = Math.max(
+      chartTop,
+      Math.min(
+        chartBottom,
+        ((event.clientY - bounds.top) / bounds.height) * 270,
+      ),
+    );
+    const ratio = x / chartWidth;
+    const index = Math.max(
+      view.start,
+      Math.min(
+        view.end,
+        Math.round(view.start + (view.end - view.start) * ratio),
+      ),
+    );
+    setCursor({ x, y, index });
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    updateCursor(event);
+    const drag = dragStart.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pixelsPerIndex = bounds.width
+      ? (view.end - view.start + 1) / bounds.width
+      : 0;
+    const shift = Math.round((drag.x - event.clientX) * pixelsPerIndex);
+    const span = drag.end - drag.start + 1;
+    const start = Math.max(0, Math.min(candles.length - span, drag.start + shift));
+    setView({ start, end: start + span - 1 });
+  }
+
+  function finishDrag(event: ReactPointerEvent<SVGSVGElement>) {
+    if (dragStart.current?.pointerId !== event.pointerId) return;
+    dragStart.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setCursor(null);
+      const bounds = chart.getBoundingClientRect();
+      const x = ((event.clientX - bounds.left) / bounds.width) * 1060;
+      const anchorRatio = Math.max(0, Math.min(1, x / chartWidth));
+      const factor = event.deltaY < 0 ? 0.8 : 1.25;
+      setView((current) => {
+        const total = candles.length;
+        const span = current.end - current.start + 1;
+        const nextSpan = Math.max(5, Math.min(total, Math.round(span * factor)));
+        const anchor = current.start + (span - 1) * anchorRatio;
+        let start = Math.round(anchor - (nextSpan - 1) * anchorRatio);
+        start = Math.max(0, Math.min(total - nextSpan, start));
+        return { start, end: start + nextSpan - 1 };
+      });
+    };
+
+    chart.addEventListener("wheel", handleWheel, { passive: false });
+    return () => chart.removeEventListener("wheel", handleWheel);
+  }, [candles.length]);
 
   return (
-    <svg
-      role="img"
-      aria-label={`${name} CoinGecko candlestick price chart in ${currency.toUpperCase()}`}
-      viewBox="0 0 1060 270"
-      preserveAspectRatio="none"
-      className="h-64 w-full sm:h-80"
-    >
-      {[0, 1, 2, 3, 4].map((tick) => {
-        const y = chartTop + ((chartBottom - chartTop) * tick) / 4;
-        const price = maxPrice - ((maxPrice - minPrice) * tick) / 4;
-        return (
-          <g key={tick}>
+    <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-slate-950/40">
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+          {hoveredCandle ? (
+            <>
+              <span className="font-medium text-slate-200">
+                {new Intl.DateTimeFormat("en", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(hoveredCandle.timestamp)}
+              </span>
+              <span className="text-slate-500">O <strong className="font-medium text-slate-300">{formatPrice(hoveredCandle.open, currency)}</strong></span>
+              <span className="text-slate-500">H <strong className="font-medium text-emerald-300">{formatPrice(hoveredCandle.high, currency)}</strong></span>
+              <span className="text-slate-500">L <strong className="font-medium text-rose-300">{formatPrice(hoveredCandle.low, currency)}</strong></span>
+              <span className="text-slate-500">C <strong className="font-medium text-slate-300">{formatPrice(hoveredCandle.close, currency)}</strong></span>
+            </>
+          ) : (
+            <span className="text-slate-500">OHLC · {currency.toUpperCase()}</span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="mr-1 hidden text-[10px] text-slate-600 sm:inline">
+            Drag to pan · Scroll to zoom
+          </span>
+          <button
+            type="button"
+            onClick={() => zoom(0.7)}
+            disabled={currentCount <= 5}
+            aria-label="Zoom in on chart"
+            title="Zoom in"
+            className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoom(1.4)}
+            disabled={fullRange}
+            aria-label="Zoom out on chart"
+            title="Zoom out"
+            className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setView({ start: 0, end: candles.length - 1 });
+              setCursor(null);
+            }}
+            disabled={fullRange}
+            aria-label="Reset chart zoom"
+            title="Reset zoom"
+            className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <svg
+        ref={chartRef}
+        role="img"
+        aria-label={`${name} CoinGecko candlestick price chart in ${currency.toUpperCase()}. Move pointer to inspect candles, drag to pan, and scroll to zoom.`}
+        viewBox="0 0 1060 270"
+        preserveAspectRatio="none"
+        className={`h-64 w-full touch-none select-none sm:h-80 ${dragging ? "cursor-grabbing" : "cursor-crosshair"}`}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          dragStart.current = {
+            pointerId: event.pointerId,
+            x: event.clientX,
+            start: view.start,
+            end: view.end,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setDragging(true);
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onPointerLeave={() => {
+          if (!dragStart.current) setCursor(null);
+        }}
+      >
+        {[0, 1, 2, 3, 4].map((tick) => {
+          const y = chartTop + ((chartBottom - chartTop) * tick) / 4;
+          const price = maxPrice - ((maxPrice - minPrice) * tick) / 4;
+          return (
+            <g key={tick}>
+              <line
+                x1="0"
+                x2={chartWidth}
+                y1={y}
+                y2={y}
+                stroke="#ffffff"
+                strokeOpacity="0.08"
+                strokeDasharray="3 7"
+              />
+              <text
+                x="920"
+                y={y + 4}
+                fill="#64748b"
+                fontSize="12"
+                textAnchor="start"
+              >
+                {formatAxisPrice(price, currency)}
+              </text>
+            </g>
+          );
+        })}
+        {visibleCandles.map((candle, index) => {
+          const x = xForIndex(index);
+          const openY = yForPrice(candle.open);
+          const closeY = yForPrice(candle.close);
+          const rising = candle.close >= candle.open;
+          const candleColor = rising ? "#34d399" : "#fb7185";
+          return (
+            <g key={candle.timestamp}>
+              <line
+                x1={x}
+                x2={x}
+                y1={yForPrice(candle.high)}
+                y2={yForPrice(candle.low)}
+                stroke={candleColor}
+                strokeWidth="1.5"
+              />
+              <rect
+                x={x - candleWidth / 2}
+                y={Math.min(openY, closeY)}
+                width={candleWidth}
+                height={Math.max(1.5, Math.abs(closeY - openY))}
+                fill={candleColor}
+                fillOpacity="0.78"
+                stroke={candleColor}
+                strokeWidth="1"
+                rx="1"
+              />
+            </g>
+          );
+        })}
+        <circle
+          cx={xForIndex(highIndex)}
+          cy={yForPrice(rawHigh)}
+          r="4"
+          fill="#34d399"
+          stroke="#020817"
+          strokeWidth="2"
+        >
+          <title>High point in visible chart</title>
+        </circle>
+        <circle
+          cx={xForIndex(lowIndex)}
+          cy={yForPrice(rawLow)}
+          r="4"
+          fill="#fb7185"
+          stroke="#020817"
+          strokeWidth="2"
+        >
+          <title>Low point in visible chart</title>
+        </circle>
+        <line
+          x1={chartWidth}
+          x2={chartWidth}
+          y1={chartTop}
+          y2={chartBottom}
+          stroke="#ffffff"
+          strokeOpacity="0.08"
+        />
+        {cursor && (
+          <g pointerEvents="none">
+            <line
+              x1={cursor.x}
+              x2={cursor.x}
+              y1={chartTop}
+              y2={chartBottom}
+              stroke="#cbd5e1"
+              strokeOpacity="0.45"
+              strokeDasharray="3 4"
+            />
             <line
               x1="0"
               x2={chartWidth}
-              y1={y}
-              y2={y}
-              stroke="#ffffff"
-              strokeOpacity="0.08"
-              strokeDasharray="3 7"
+              y1={cursor.y}
+              y2={cursor.y}
+              stroke="#cbd5e1"
+              strokeOpacity="0.35"
+              strokeDasharray="3 4"
             />
-            <text
-              x="920"
-              y={y + 4}
-              fill="#64748b"
-              fontSize="12"
-              textAnchor="start"
-            >
-              {formatAxisPrice(price, currency)}
-            </text>
-          </g>
-        );
-      })}
-      {candles.map((candle, index) => {
-        const x = xForIndex(index);
-        const openY = yForPrice(candle.open);
-        const closeY = yForPrice(candle.close);
-        const rising = candle.close >= candle.open;
-        const candleColor = rising ? "#34d399" : "#fb7185";
-        return (
-          <g key={candle.timestamp}>
-            <title>
-              {`${new Date(candle.timestamp).toLocaleString()}: Open ${formatPrice(candle.open, currency)}, High ${formatPrice(candle.high, currency)}, Low ${formatPrice(candle.low, currency)}, Close ${formatPrice(candle.close, currency)}`}
-            </title>
-            <line
-              x1={x}
-              x2={x}
-              y1={yForPrice(candle.high)}
-              y2={yForPrice(candle.low)}
-              stroke={candleColor}
-              strokeWidth="1.5"
+            <circle
+              cx={xForIndex(cursorIndex - view.start)}
+              cy={yForPrice(candles[cursorIndex].close)}
+              r="4"
+              fill="#e2e8f0"
+              stroke="#020817"
+              strokeWidth="2"
             />
             <rect
-              x={x - candleWidth / 2}
-              y={Math.min(openY, closeY)}
-              width={candleWidth}
-              height={Math.max(1.5, Math.abs(closeY - openY))}
-              fill={candleColor}
-              fillOpacity="0.78"
-              stroke={candleColor}
-              strokeWidth="1"
-              rx="1"
+              x={chartWidth + 3}
+              y={Math.max(chartTop, Math.min(chartBottom - 18, cursor.y - 9))}
+              width="150"
+              height="18"
+              rx="4"
+              fill="#0f172a"
             />
+            <text
+              x={chartWidth + 8}
+              y={Math.max(chartTop + 12, Math.min(chartBottom - 6, cursor.y + 4))}
+              fill="#e2e8f0"
+              fontSize="11"
+            >
+              {formatPrice(
+                maxPrice -
+                  ((cursor.y - chartTop) / (chartBottom - chartTop)) *
+                    priceRange,
+                currency,
+              )}
+            </text>
           </g>
-        );
-      })}
-      <circle
-        cx={xForIndex(highIndex)}
-        cy={yForPrice(rawHigh)}
-        r="4"
-        fill="#34d399"
-        stroke="#020817"
-        strokeWidth="2"
-      >
-        <title>High point in selected range</title>
-      </circle>
-      <circle
-        cx={xForIndex(lowIndex)}
-        cy={yForPrice(rawLow)}
-        r="4"
-        fill="#fb7185"
-        stroke="#020817"
-        strokeWidth="2"
-      >
-        <title>Low point in selected range</title>
-      </circle>
-      <line
-        x1={chartWidth}
-        x2={chartWidth}
-        y1={chartTop}
-        y2={chartBottom}
-        stroke="#ffffff"
-        strokeOpacity="0.08"
-      />
-    </svg>
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -749,6 +995,7 @@ export function MarketDashboard({
             ) : chartCandles.length > 0 ? (
               <>
                 <MarketChart
+                  key={activeChartKey}
                   candles={chartCandles}
                   name={activeAsset?.name ?? "Coin"}
                   currency={currency}
