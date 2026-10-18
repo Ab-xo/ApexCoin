@@ -1,234 +1,176 @@
 import {
   ArrowRight,
-  ChevronRight,
-  Globe2,
-  LockKeyhole,
-  ShieldCheck,
-  Sparkles,
-  TrendingUp,
-  Zap,
+  BarChart3,
+  ChartNoAxesCombined,
+  Search,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-
-const stats = [
-  { label: "Transactions/sec", value: "1.2M" },
-  { label: "Network uptime", value: "99.99%" },
-  { label: "Avg. fees", value: "$0.0002" },
-  { label: "Active wallets", value: "2.4M" },
-];
+import { Footer } from "./components/footer";
+import { Header } from "./components/header";
 
 const features = [
   {
-    icon: Zap,
-    title: "Lightning-fast settlement",
+    icon: BarChart3,
+    title: "Market at a glance",
     description:
-      "Built for high-throughput payments and instant finality across global markets.",
+      "See global market metrics, trending coins, and category movement together in one dashboard.",
   },
   {
-    icon: ShieldCheck,
-    title: "Institutional-grade security",
+    icon: Search,
+    title: "Find the coins you follow",
     description:
-      "Robust validation, encrypted custody patterns, and resilient consensus design.",
+      "Search and sort a broad list of crypto assets by market cap or trading volume.",
   },
   {
-    icon: Globe2,
-    title: "A borderless economy",
+    icon: ChartNoAxesCombined,
+    title: "Explore price history",
     description:
-      "Power seamless cross-border transactions for people, businesses, and ecosystems.",
+      "Open a coin profile to review key market statistics and its recent price chart.",
   },
 ];
 
-const roadmap = [
-  "Layered DeFi vaults for yield generation",
-  "Multi-chain bridge infrastructure",
-  "AI-powered on-chain analytics dashboard",
-  "Eco-friendly validator incentives",
+const appHighlights = [
+  { number: "01", label: "Market overview", detail: "Global stats and market movement" },
+  { number: "02", label: "Trending assets", detail: "See what is gaining attention" },
+  { number: "03", label: "Coin profiles", detail: "Compare prices and historical charts" },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_35%),linear-gradient(180deg,#020817_0%,#0f172a_40%,#020817_100%)] text-slate-50">
-      <section className="mx-auto flex max-w-7xl flex-col px-6 pb-20 pt-8 lg:px-8">
-        <header className="flex items-center justify-between rounded-full border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-xl">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 text-lg font-bold text-slate-950">
-              A
-            </div>
-            <span className="text-base font-semibold tracking-wide">Apex Coin</span>
-          </Link>
-          <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
-            <a href="#features" className="transition hover:text-white">Features</a>
-            <a href="#network" className="transition hover:text-white">Network</a>
-            <a href="#roadmap" className="transition hover:text-white">Roadmap</a>
-          </nav>
-          <Link
-            href="/market"
-            className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-          >
-            Launch App
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </header>
-
-        <div className="mt-20 grid items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]">
+    <div className="flex flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_35%)]">
+      <Header variant="intro" />
+      <main className="flex-1 text-slate-50">
+        <section
+          id="about"
+          className="mx-auto grid max-w-7xl items-center gap-14 px-6 py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-28"
+        >
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-medium text-cyan-200">
-              <Sparkles className="h-4 w-4" />
-              Next-generation crypto infrastructure
+              Crypto markets, made easier to explore
             </div>
-            <h1 className="max-w-xl text-5xl font-black tracking-tight text-white md:text-6xl">
-              Reimagining digital value for the next era.
+            <h1 className="max-w-2xl text-5xl font-black tracking-tight text-white md:text-6xl lg:text-7xl">
+              A clearer view of the crypto market.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              Apex Coin combines ultra-fast settlement, robust security, and a
-              developer-first ecosystem to power the future of programmable
-              finance.
+              Apex Coin brings cryptocurrency market data, trending assets, coin search,
+              and price history into one straightforward place.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
                 href="/market"
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"
+                className="inline-flex items-center gap-2 rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
               >
-                Get started
-                <ChevronRight className="h-4 w-4" />
+                Explore the market
+                <ArrowRight className="h-4 w-4" />
               </Link>
-              <a
-                href="#roadmap"
-                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+              <Link
+                href="/coins"
+                className="text-sm font-medium text-slate-300 transition hover:text-white"
               >
-                Explore roadmap
-              </a>
-            </div>
-            <div className="mt-10 grid max-w-xl grid-cols-2 gap-4 sm:grid-cols-4">
-              {stats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-2xl font-bold text-white">{stat.value}</div>
-                  <div className="mt-1 text-xs text-slate-300">{stat.label}</div>
-                </div>
-              ))}
+                Browse all coins
+              </Link>
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-cyan-400/20 bg-slate-950/80 p-5 shadow-2xl shadow-cyan-500/10">
-            <div className="rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/80 p-6">
-              <div className="flex items-center justify-between">
+          <div className="relative">
+            <div className="absolute -inset-5 rounded-[2rem] bg-cyan-500/10 blur-3xl" />
+            <div className="relative rounded-[2rem] border border-white/10 bg-slate-950/75 p-6 shadow-2xl shadow-cyan-950/40 backdrop-blur">
+              <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+                <Image
+                  src="/img/logo.jpg"
+                  alt="Apex Coin"
+                  width={56}
+                  height={56}
+                  className="rounded-full"
+                />
                 <div>
-                  <p className="text-sm text-slate-400">Portfolio balance</p>
-                  <p className="mt-2 text-4xl font-bold text-white">$248,340.42</p>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300">
-                  <TrendingUp className="h-6 w-6" />
+                  <p className="text-sm text-slate-400">Welcome to</p>
+                  <p className="mt-1 text-2xl font-bold text-white">
+                    Apex Coin Markets
+                  </p>
                 </div>
               </div>
-              <div className="mt-8 space-y-4">
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">
-                      A
-                    </div>
+              <div className="space-y-3 pt-5">
+                {appHighlights.map((item) => (
+                  <div
+                    key={item.number}
+                    className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                  >
+                    <span className="text-sm font-semibold text-cyan-300">
+                      {item.number}
+                    </span>
                     <div>
-                      <div className="font-semibold">Apex</div>
-                      <div className="text-sm text-slate-400">APX</div>
+                      <p className="font-semibold text-white">{item.label}</p>
+                      <p className="mt-1 text-sm text-slate-400">
+                        {item.detail}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold">42.8 APX</div>
-                    <div className="text-sm text-emerald-400">+12.4%</div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="mb-3 flex items-center justify-between text-sm text-slate-300">
-                    <span>Network performance</span>
-                    <span>95%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                    <div className="h-full w-[95%] rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
-                  </div>
-                </div>
+                ))}
               </div>
+              <p className="mt-5 text-xs leading-5 text-slate-500">
+                Market data is provided by CoinGecko and may be delayed.
+              </p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="features" className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
-        <div className="mb-12 max-w-2xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Why Apex</p>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            Purpose-built for a digital-first economy.
-          </h2>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {features.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
-                <Icon className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-semibold text-white">{title}</h3>
-              <p className="mt-3 text-base leading-7 text-slate-300">{description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="network" className="mx-auto max-w-7xl px-6 pb-20 lg:px-8">
-        <div className="grid gap-8 rounded-[2rem] border border-white/10 bg-slate-900/70 p-8 lg:grid-cols-[0.85fr_1.15fr]">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Network</p>
-            <h3 className="mt-4 text-3xl font-bold text-white">Trusted by builders, merchants, and communities.</h3>
-            <p className="mt-4 text-slate-300">
-              From instant consumer payments to institutional treasury management, Apex Coin delivers the security and scale modern ecosystems demand.
+        <section
+          id="features"
+          className="mx-auto max-w-7xl px-6 pb-24 lg:px-8"
+        >
+          <div className="mb-10 max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
+              Made for discovery
             </p>
-            <div className="mt-6 flex items-center gap-3 text-cyan-200">
-              <LockKeyhole className="h-5 w-5" />
-              Enterprise-ready security controls
-            </div>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
+              The essentials to understand the market.
+            </h2>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              { label: "Validators", value: "2,400+" },
-              { label: "Daily volume", value: "$3.8B" },
-              { label: "Settlement time", value: "<1s" },
-              { label: "Energy efficiency", value: "82%" },
-            ].map((metric) => (
-              <div key={metric.label} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <div className="text-3xl font-bold text-white">{metric.value}</div>
-                <div className="mt-2 text-sm text-slate-300">{metric.label}</div>
-              </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {features.map(({ icon: Icon, title, description }) => (
+              <article
+                key={title}
+                className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:border-cyan-300/30 hover:bg-white/[0.06]"
+              >
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-semibold text-white">{title}</h3>
+                <p className="mt-3 leading-7 text-slate-300">{description}</p>
+              </article>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="roadmap" className="mx-auto max-w-7xl px-6 pb-24 lg:px-8">
-        <div className="mb-12 max-w-2xl">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">Roadmap</p>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            Building the tools that power tomorrow’s digital economy.
-          </h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          {roadmap.map((item, index) => (
-            <div key={item} className="rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 p-6">
-              <div className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">
-                {index + 1}
-              </div>
-              <p className="text-lg font-medium leading-7 text-slate-100">{item}</p>
+        <section
+          id="explore"
+          className="mx-auto max-w-7xl px-6 pb-24 lg:px-8"
+        >
+          <div className="flex flex-col items-start justify-between gap-6 rounded-[2rem] border border-cyan-300/20 bg-gradient-to-r from-cyan-950/70 via-slate-900/80 to-slate-900/70 p-8 md:flex-row md:items-center md:p-10">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                Start exploring
+              </p>
+              <h2 className="mt-3 text-3xl font-bold text-white">
+                Your next market insight starts here.
+              </h2>
+              <p className="mt-3 max-w-2xl leading-7 text-slate-300">
+                Explore market information and discover assets at your own pace.
+              </p>
             </div>
-          ))}
-        </div>
-      </section>
-      <footer className="mx-auto max-w-7xl border-t border-white/10 px-6 py-6 text-sm text-slate-500 lg:px-8">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row">
-          <span>Apex Coin</span>
-          <Link href="/market" className="text-cyan-300 transition hover:text-cyan-200">
-            Explore crypto markets
-          </Link>
-        </div>
-        <p className="mt-4 text-xs text-slate-600">
-          Portfolio and network figures on this landing page are illustrative.
-        </p>
-      </footer>
-    </main>
+            <Link
+              href="/market"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+            >
+              Open market app
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+      </main>
+      <Footer variant="intro" />
+    </div>
   );
 }
